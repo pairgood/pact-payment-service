@@ -30,11 +30,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
           
-    - name: Make gradlew executable
-      run: chmod +x ./gradlew
+    - name: Make gradlew executable (if exists)
+      run: |
+        if [ -f "./gradlew" ]; then
+          chmod +x ./gradlew
+        fi
       
     - name: Run tests
-      run: ./gradlew test
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew test
+        else
+          gradle test
+        fi
       
     - name: Upload test results
       uses: actions/upload-artifact@v4
