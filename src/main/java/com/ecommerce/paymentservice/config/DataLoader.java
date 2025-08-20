@@ -68,12 +68,12 @@ public class DataLoader implements CommandLineRunner {
                                   "Debit card ending in 3456 - REFUNDED"));
         
         // Additional historical payments for demonstration
-        payments.add(createPayment(7L, 1L, null, new BigDecimal("99.99"), 
+        payments.add(createPayment(7L, 1L, 7L, new BigDecimal("99.99"), 
                                   Payment.PaymentStatus.COMPLETED, Payment.PaymentMethod.CREDIT_CARD,
                                   "txn_john_prev_007", LocalDateTime.now().minusWeeks(2),
                                   "Previous purchase - Visa 1234"));
         
-        payments.add(createPayment(8L, 2L, null, new BigDecimal("25.50"), 
+        payments.add(createPayment(8L, 2L, 8L, new BigDecimal("25.50"), 
                                   Payment.PaymentStatus.FAILED, Payment.PaymentMethod.CREDIT_CARD,
                                   "txn_jane_failed_008", LocalDateTime.now().minusWeeks(1),
                                   "Payment failed - insufficient funds"));
@@ -99,7 +99,7 @@ public class DataLoader implements CommandLineRunner {
         payment.setPaymentMethod(method);
         payment.setTransactionId(transactionId);
         payment.setPaymentDate(paymentDate);
-        payment.setPaymentDetails(paymentDetails);
+        payment.setPaymentGatewayResponse(paymentDetails);
         return payment;
     }
 }

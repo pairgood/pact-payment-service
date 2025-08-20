@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -31,9 +32,13 @@ public class PaymentController {
         @ApiResponse(responseCode = "404", description = "Order not found"),
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
-    public ResponseEntity<Payment> processPayment(@RequestBody PaymentRequest paymentRequest) {
-        Payment payment = paymentService.processPayment(paymentRequest);
-        return ResponseEntity.ok(payment);
+    public ResponseEntity<Payment> processPayment(@Valid @RequestBody PaymentRequest paymentRequest) {
+        try {
+            Payment payment = paymentService.processPayment(paymentRequest);
+            return ResponseEntity.ok(payment);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
     
     @GetMapping("/{id}")
@@ -46,8 +51,15 @@ public class PaymentController {
     public ResponseEntity<Payment> getPaymentById(
         @Parameter(description = "Unique identifier of the payment", required = true, example = "1")
         @PathVariable Long id) {
-        Payment payment = paymentService.getPaymentById(id);
-        return ResponseEntity.ok(payment);
+        try {
+            Payment payment = paymentService.getPaymentById(id);
+            return ResponseEntity.ok(payment);
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().build();
+        }
     }
     
     @GetMapping("/order/{orderId}")
@@ -89,8 +101,15 @@ public class PaymentController {
     public ResponseEntity<Payment> refundPayment(
         @Parameter(description = "Unique identifier of the payment to refund", required = true, example = "1")
         @PathVariable Long id) {
-        Payment payment = paymentService.refundPayment(id);
-        return ResponseEntity.ok(payment);
+        try {
+            Payment payment = paymentService.refundPayment(id);
+            return ResponseEntity.ok(payment);
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("not found")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().build();
+        }
     }
     
     @GetMapping
