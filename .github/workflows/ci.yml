@@ -20,29 +20,11 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         
-    - name: Cache Gradle packages
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-          
-    - name: Make gradlew executable (if exists)
-      run: |
-        if [ -f "./gradlew" ]; then
-          chmod +x ./gradlew
-        fi
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
       
     - name: Run tests
-      run: |
-        if [ -f "./gradlew" ]; then
-          ./gradlew test
-        else
-          gradle test
-        fi
+      run: gradle test
       
     - name: Upload test results
       uses: actions/upload-artifact@v4
