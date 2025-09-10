@@ -18,6 +18,12 @@ public class NotificationServiceClient {
         this.webClient = WebClient.builder().build();
     }
     
+    // Constructor for testing with custom URL
+    public NotificationServiceClient(String baseUrl) {
+        this.webClient = WebClient.builder().build();
+        this.notificationServiceUrl = baseUrl;
+    }
+    
     public void sendPaymentConfirmation(Long paymentId, Long userId, Long orderId) {
         try {
             webClient.post()
