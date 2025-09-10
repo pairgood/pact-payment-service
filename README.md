@@ -68,6 +68,145 @@ This service processes payments for orders and produces payment events for the n
     └─────────────────────────────────┘
 ```
 
+## Pact Contract Testing
+
+This service uses [Pact](https://pact.io/) for consumer contract testing to ensure reliable communication with external services.
+
+### Consumer Role
+
+This service acts as a consumer for the following external services:
+- **Notification Service**: Payment confirmation, failure, and refund notifications
+- **Telemetry Service**: Observability and monitoring data
+
+### Running Pact Tests
+
+#### Consumer Tests
+```bash
+# Run consumer tests and generate contracts
+./gradlew pactTest
+
+# Generated contracts will be in build/pacts/
+```
+
+#### Publishing Contracts
+```bash
+# Publish contracts to Pactflow
+./gradlew pactPublish
+```
+
+### Contract Testing Approach
+
+This implementation follows Pact's **"Be conservative in what you send"** principle:
+
+- Consumer tests define minimal request structures with only required fields
+- Request bodies cannot contain fields not defined in the contract
+- Tests validate that actual API calls match contract expectations exactly
+- Mock servers reject requests with unexpected extra fields
+
+### Contract Files
+
+Consumer contracts are generated in:
+- `build/pacts/` - Local contract files  
+- Pactflow - Centralized contract storage and management
+
+### External Service Contracts
+
+#### Notification Service Contracts
+- **Payment Confirmation**: `POST /api/notifications/payment-confirmation`
+  - Request: `{"paymentId": number, "userId": number, "orderId": number}`
+  - Response: `200 OK`
+- **Payment Failure**: `POST /api/notifications/payment-failure`
+  - Request: `{"paymentId": number, "userId": number, "orderId": number}`
+  - Response: `200 OK`
+- **Refund Confirmation**: `POST /api/notifications/refund-confirmation`
+  - Request: `{"paymentId": number, "userId": number, "orderId": number}`
+  - Response: `200 OK`
+
+#### Telemetry Service Contracts
+- **Telemetry Events**: `POST /api/telemetry/events`
+  - Request: Complex telemetry event data with traces, spans, timestamps, and metadata
+  - Response: `200 OK`
+
+### Troubleshooting
+
+#### Common Issues
+
+1. **Consumer Test Failures**
+   - **Extra fields in request**: Remove any fields from request body that aren't actually needed
+   - **Mock server expectation mismatch**: Verify HTTP method, path, headers, and body structure
+   - **Content-Type headers**: Ensure request headers match exactly what the service sends
+   - **URL path parameters**: Check that path parameters are correctly formatted in the contract
+
+2. **Contract Generation Issues**
+   - **Missing @Pact annotation**: Ensure each contract method has proper annotations
+   - **Invalid JSON structure**: Verify body definitions match actual data structures
+   - **Provider state setup**: Ensure provider state descriptions are descriptive and specific
+
+3. **Pactflow Integration Issues**
+   - **Authentication**: Verify `PACT_BROKER_TOKEN` environment variable is set
+   - **Base URL**: Confirm `PACT_BROKER_BASE_URL` points to `https://pairgood.pactflow.io`
+   - **Network connectivity**: Check firewall/proxy settings if publishing fails
+
+#### Debug Commands
+
+```bash
+# Run with debug output
+./gradlew pactTest --info --debug
+
+# Run specific test class
+./gradlew pactTest --tests="*NotificationServicePactTest*"
+
+# Generate contracts without publishing
+./gradlew pactTest -x pactPublish
+
+# Clean and regenerate contracts
+./gradlew clean pactTest
+```
+
+#### Debug Logging
+
+Add to `application-test.properties` for detailed Pact logging:
+```properties
+logging.level.au.com.dius.pact=DEBUG
+logging.level.org.apache.http=DEBUG
+```
+
+### Contract Evolution
+
+When external services change their APIs:
+
+1. **New Fields in Responses**: No action needed - consumers ignore extra fields
+2. **Removed Response Fields**: Update consumer tests if those fields were being used
+3. **New Required Request Fields**: Update consumer tests and service code
+4. **Changed Endpoints**: Update consumer contract paths and service client code
+
+### Integration with CI/CD
+
+Consumer contract tests run automatically on:
+- **Pull Requests**: Generate and validate contracts
+- **Main Branch**: Publish contracts to Pactflow for provider verification
+- **Feature Branches**: Generate contracts for validation (not published)
+
+### Manual Testing
+
+For local development against real services:
+```bash
+# Test against local services (disable Pact)
+./gradlew test -Dpact.verifier.disabled=true
+
+# Test against staging services
+export EXTERNAL_SERVICE_URL=https://staging.example.com
+./gradlew test -Dpact.verifier.disabled=true
+```
+
+### Contract Documentation
+
+Generated contracts document:
+- **API interactions**: What endpoints this service calls
+- **Request formats**: Exact structure of requests sent
+- **Response expectations**: What fields this service relies on
+- **Error handling**: How this service handles different response scenarios
+
 ## Features
 
 - **Payment Processing**: Secure payment transaction handling
@@ -84,6 +223,7 @@ This service processes payments for orders and produces payment events for the n
 - **Database**: H2 (in-memory)
 - **ORM**: Spring Data JPA
 - **Java Version**: 17
+- **Contract Testing**: Pact 4.4.7
 
 ## API Endpoints
 
