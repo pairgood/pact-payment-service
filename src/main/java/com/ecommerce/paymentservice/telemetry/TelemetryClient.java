@@ -13,6 +13,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class TelemetryClient {
     
     private final WebClient webClient;
+    private final boolean testMode;
     
     @Value("${telemetry.service.url:http://localhost:8086}")
     private String telemetryServiceUrl;
@@ -22,6 +23,7 @@ public class TelemetryClient {
     
     public TelemetryClient() {
         this.webClient = WebClient.builder().build();
+        this.testMode = false;
     }
     
     // Constructor for testing with custom URL and service name
@@ -29,6 +31,7 @@ public class TelemetryClient {
         this.webClient = WebClient.builder().build();
         this.telemetryServiceUrl = baseUrl;
         this.serviceName = serviceName;
+        this.testMode = true; // Enable test mode for synchronous requests
     }
     
     public String startTrace(String operation, String httpMethod, String httpUrl, String userId) {
@@ -41,7 +44,7 @@ public class TelemetryClient {
         eventData.put("serviceName", serviceName);
         eventData.put("operation", operation);
         eventData.put("eventType", "SPAN");
-        eventData.put("timestamp", LocalDateTime.now());
+        eventData.put("timestamp", LocalDateTime.now().toString());
         eventData.put("status", "SUCCESS");
         eventData.put("httpMethod", httpMethod);
         eventData.put("httpUrl", httpUrl);
@@ -71,7 +74,7 @@ public class TelemetryClient {
         eventData.put("serviceName", serviceName);
         eventData.put("operation", operation + "_complete");
         eventData.put("eventType", "SPAN");
-        eventData.put("timestamp", LocalDateTime.now());
+        eventData.put("timestamp", LocalDateTime.now().toString());
         eventData.put("durationMs", duration);
         eventData.put("status", httpStatusCode >= 400 ? "ERROR" : "SUCCESS");
         eventData.put("httpStatusCode", httpStatusCode);
@@ -97,7 +100,7 @@ public class TelemetryClient {
         eventData.put("serviceName", serviceName);
         eventData.put("operation", targetService + "_" + operation);
         eventData.put("eventType", "SPAN");
-        eventData.put("timestamp", LocalDateTime.now());
+        eventData.put("timestamp", LocalDateTime.now().toString());
         eventData.put("durationMs", duration);
         eventData.put("status", statusCode >= 400 ? "ERROR" : "SUCCESS");
         eventData.put("httpMethod", httpMethod);
@@ -119,7 +122,7 @@ public class TelemetryClient {
         eventData.put("serviceName", serviceName);
         eventData.put("operation", "log_" + level.toLowerCase());
         eventData.put("eventType", "LOG");
-        eventData.put("timestamp", LocalDateTime.now());
+        eventData.put("timestamp", LocalDateTime.now().toString());
         eventData.put("status", "SUCCESS");
         eventData.put("metadata", message);
         sendTelemetryEvent(eventData);
@@ -127,15 +130,26 @@ public class TelemetryClient {
     
     private void sendTelemetryEvent(Map<String, Object> eventData) {
         try {
-            webClient.post()
-                .uri(telemetryServiceUrl + "/api/telemetry/events")
-                .bodyValue(eventData)
-                .retrieve()
-                .bodyToMono(Void.class)
-                .subscribe(
-                    result -> {},
-                    error -> System.err.println("Failed to send telemetry: " + error.getMessage())
-                );
+            if (testMode) {
+                // In test mode, use blocking calls to ensure the request completes
+                webClient.post()
+                    .uri(telemetryServiceUrl + "/api/telemetry/events")
+                    .bodyValue(eventData)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+            } else {
+                // In production, use non-blocking calls
+                webClient.post()
+                    .uri(telemetryServiceUrl + "/api/telemetry/events")
+                    .bodyValue(eventData)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .subscribe(
+                        result -> {},
+                        error -> System.err.println("Failed to send telemetry: " + error.getMessage())
+                    );
+            }
         } catch (Exception e) {
             // Silently fail - telemetry should not affect application functionality
         }

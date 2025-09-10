@@ -1,10 +1,19 @@
 package com.ecommerce.paymentservice.pact;
 
+import au.com.dius.pact.consumer.MockServer;
+import au.com.dius.pact.consumer.dsl.PactDslWithProvider;
+import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
+import au.com.dius.pact.consumer.junit5.PactTestFor;
+import au.com.dius.pact.core.model.PactSpecVersion;
+import au.com.dius.pact.core.model.RequestResponsePact;
+import au.com.dius.pact.core.model.annotations.Pact;
+import com.ecommerce.paymentservice.telemetry.TelemetryClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.HashMap;
 import java.util.Map;
 
+import static au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
@@ -12,82 +21,143 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * 
  * These tests define the contract between payment-service (consumer)
  * and telemetry-service (provider) for observability and monitoring data.
- * 
- * Note: Currently implemented as placeholder tests due to Pact framework
- * compatibility issues with Java 17 + Spring Boot 3.2.0. The structure
- * and patterns are established for future Pact integration.
  */
+@ExtendWith(PactConsumerTestExt.class)
 class TelemetryServicePactTest {
 
+    @Pact(consumer = "payment-service", provider = "telemetry-service")
+    public RequestResponsePact telemetrySpanEventContract(PactDslWithProvider builder) {
+        return builder
+            .given("telemetry service is available")
+            .uponReceiving("a telemetry span event")
+            .path("/api/telemetry/events")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.stringMatcher("traceId", "trace_\\w+");
+                body.stringMatcher("spanId", "span_\\w+");
+                body.stringType("serviceName");
+                body.stringType("operation");
+                body.stringValue("eventType", "SPAN");
+                body.stringType("timestamp");
+                body.stringValue("status", "SUCCESS");
+                body.stringType("httpMethod");
+                body.stringType("httpUrl");
+                body.stringType("userId");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
+    @Pact(consumer = "payment-service", provider = "telemetry-service")
+    public RequestResponsePact telemetrySpanFinishContract(PactDslWithProvider builder) {
+        return builder
+            .given("telemetry service is available")
+            .uponReceiving("a telemetry span finish event")
+            .path("/api/telemetry/events")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.stringType("traceId");
+                body.stringType("spanId");
+                body.stringType("serviceName");
+                body.stringMatcher("operation", ".*_complete");
+                body.stringValue("eventType", "SPAN");
+                body.stringType("timestamp");
+                body.numberType("durationMs");
+                body.stringType("status");
+                body.numberType("httpStatusCode");
+                body.stringType("errorMessage");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
+    @Pact(consumer = "payment-service", provider = "telemetry-service")
+    public RequestResponsePact telemetryServiceCallContract(PactDslWithProvider builder) {
+        return builder
+            .given("telemetry service is available")
+            .uponReceiving("a telemetry service call event")
+            .path("/api/telemetry/events")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.stringType("traceId");
+                body.stringType("spanId");
+                body.stringType("parentSpanId");
+                body.stringType("serviceName");
+                body.stringMatcher("operation", ".*_.*");
+                body.stringValue("eventType", "SPAN");
+                body.stringType("timestamp");
+                body.numberType("durationMs");
+                body.stringType("status");
+                body.stringType("httpMethod");
+                body.stringType("httpUrl");
+                body.numberType("httpStatusCode");
+                body.stringMatcher("metadata", "Outbound call to .*");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
     @Test
-    void testStartTrace() {
-        // Placeholder for telemetry trace start contract
+    @PactTestFor(pactMethod = "telemetrySpanEventContract", pactVersion = PactSpecVersion.V3)
+    void testStartTrace(MockServer mockServer) {
+        // Create telemetry client with mock server URL
+        TelemetryClient client = new TelemetryClient(mockServer.getUrl(), "payment-service");
         
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> eventData = new HashMap<>();
-            eventData.put("traceId", "trace_12345");
-            eventData.put("spanId", "span_67890");
-            eventData.put("serviceName", "payment-service");
-            eventData.put("operation", "process_payment");
-            eventData.put("eventType", "SPAN");
-            eventData.put("timestamp", "2023-09-10T19:24:00Z");
-            eventData.put("status", "SUCCESS");
-            eventData.put("httpMethod", "POST");
-            eventData.put("httpUrl", "/api/payments");
-            eventData.put("userId", "user123");
-            
-            // Expected contract:
-            // POST /api/telemetry/events
-            // Content-Type: application/json
-            // Body: complex telemetry event with trace/span data
-            // Response: 200 OK
-            
-            System.out.println("Telemetry trace start contract: " + eventData);
+            client.startTrace("process_payment", "POST", "/api/payments", "user123");
         });
     }
 
     @Test
-    void testFinishTrace() {
-        // Placeholder for telemetry trace completion contract
+    @PactTestFor(pactMethod = "telemetrySpanFinishContract", pactVersion = PactSpecVersion.V3)
+    void testFinishTrace(MockServer mockServer) {
+        // Create telemetry client with mock server URL
+        TelemetryClient client = new TelemetryClient(mockServer.getUrl(), "payment-service");
         
+        // Set up trace context first
+        TelemetryClient.TraceContext.setTraceId("trace_12345");
+        TelemetryClient.TraceContext.setSpanId("span_67890");
+        TelemetryClient.TraceContext.setStartTime(System.currentTimeMillis() - 1000);
+        
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> eventData = new HashMap<>();
-            eventData.put("traceId", "trace_12345");
-            eventData.put("spanId", "span_67890");
-            eventData.put("serviceName", "payment-service");
-            eventData.put("operation", "process_payment_complete");
-            eventData.put("eventType", "SPAN");
-            eventData.put("timestamp", "2023-09-10T19:24:01Z");
-            eventData.put("durationMs", 1000L);
-            eventData.put("status", "SUCCESS");
-            eventData.put("httpStatusCode", 200);
-            eventData.put("errorMessage", "");
-            
-            System.out.println("Telemetry trace finish contract: " + eventData);
+            client.finishTrace("process_payment", 200, "");
         });
+        
+        // Clean up
+        TelemetryClient.TraceContext.clear();
     }
 
     @Test
-    void testRecordServiceCall() {
-        // Placeholder for telemetry service call recording contract
+    @PactTestFor(pactMethod = "telemetryServiceCallContract", pactVersion = PactSpecVersion.V3)
+    void testRecordServiceCall(MockServer mockServer) {
+        // Create telemetry client with mock server URL
+        TelemetryClient client = new TelemetryClient(mockServer.getUrl(), "payment-service");
         
+        // Set up trace context first
+        TelemetryClient.TraceContext.setTraceId("trace_12345");
+        TelemetryClient.TraceContext.setSpanId("span_67890");
+        
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> eventData = new HashMap<>();
-            eventData.put("traceId", "trace_12345");
-            eventData.put("spanId", "span_11111");
-            eventData.put("parentSpanId", "span_67890");
-            eventData.put("serviceName", "payment-service");
-            eventData.put("operation", "notification-service_send_notification");
-            eventData.put("eventType", "SPAN");
-            eventData.put("timestamp", "2023-09-10T19:24:00.5Z");
-            eventData.put("durationMs", 150L);
-            eventData.put("status", "SUCCESS");
-            eventData.put("httpMethod", "POST");
-            eventData.put("httpUrl", "/api/notifications/payment-confirmation");
-            eventData.put("httpStatusCode", 200);
-            eventData.put("metadata", "Outbound call to notification-service");
-            
-            System.out.println("Telemetry service call contract: " + eventData);
+            client.recordServiceCall(
+                "notification-service", 
+                "send_notification", 
+                "POST", 
+                "/api/notifications/payment-confirmation", 
+                150L, 
+                200
+            );
         });
+        
+        // Clean up
+        TelemetryClient.TraceContext.clear();
     }
 }

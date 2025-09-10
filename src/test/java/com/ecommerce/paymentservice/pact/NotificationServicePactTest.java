@@ -1,10 +1,17 @@
 package com.ecommerce.paymentservice.pact;
 
+import au.com.dius.pact.consumer.MockServer;
+import au.com.dius.pact.consumer.dsl.PactDslWithProvider;
+import au.com.dius.pact.consumer.junit5.PactConsumerTestExt;
+import au.com.dius.pact.consumer.junit5.PactTestFor;
+import au.com.dius.pact.core.model.PactSpecVersion;
+import au.com.dius.pact.core.model.RequestResponsePact;
+import au.com.dius.pact.core.model.annotations.Pact;
+import com.ecommerce.paymentservice.service.NotificationServiceClient;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.function.client.WebClient;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.Map;
-
+import static au.com.dius.pact.consumer.dsl.LambdaDsl.newJsonBody;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
@@ -13,67 +20,97 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
  * These tests define the contract between payment-service (consumer)
  * and notification-service (provider) following Pact's "Be conservative
  * in what you send" principle.
- * 
- * Note: Currently implemented as placeholder tests due to Pact framework
- * compatibility issues with Java 17 + Spring Boot 3.2.0. The structure
- * and patterns are established for future Pact integration.
  */
+@ExtendWith(PactConsumerTestExt.class)
 class NotificationServicePactTest {
 
+    @Pact(consumer = "payment-service", provider = "notification-service")
+    public RequestResponsePact paymentConfirmationContract(PactDslWithProvider builder) {
+        return builder
+            .given("notification service is available")
+            .uponReceiving("a payment confirmation notification request")
+            .path("/api/notifications/payment-confirmation")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.numberType("paymentId");
+                body.numberType("userId");
+                body.numberType("orderId");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
+    @Pact(consumer = "payment-service", provider = "notification-service")
+    public RequestResponsePact paymentFailureContract(PactDslWithProvider builder) {
+        return builder
+            .given("notification service is available")
+            .uponReceiving("a payment failure notification request")
+            .path("/api/notifications/payment-failure")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.numberType("paymentId");
+                body.numberType("userId");
+                body.numberType("orderId");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
+    @Pact(consumer = "payment-service", provider = "notification-service")
+    public RequestResponsePact refundConfirmationContract(PactDslWithProvider builder) {
+        return builder
+            .given("notification service is available")
+            .uponReceiving("a refund confirmation notification request")
+            .path("/api/notifications/refund-confirmation")
+            .method("POST")
+            .headers("Content-Type", "application/json")
+            .body(newJsonBody(body -> {
+                body.numberType("paymentId");
+                body.numberType("userId");
+                body.numberType("orderId");
+            }).build())
+            .willRespondWith()
+            .status(200)
+            .toPact();
+    }
+
     @Test
-    void testSendPaymentConfirmation() {
-        // This is a placeholder that demonstrates the expected consumer behavior
-        // When Pact is fully integrated, this will generate a contract file
-        // specifying the exact request format for payment confirmation notifications
+    @PactTestFor(pactMethod = "paymentConfirmationContract", pactVersion = PactSpecVersion.V3)
+    void testSendPaymentConfirmation(MockServer mockServer) {
+        // Create service client with mock server URL
+        NotificationServiceClient client = new NotificationServiceClient(mockServer.getUrl());
         
-        WebClient webClient = WebClient.builder().build();
-        
-        // Expected contract:
-        // POST /api/notifications/payment-confirmation
-        // Content-Type: application/json
-        // Body: {"paymentId": <number>, "userId": <number>, "orderId": <number>}
-        // Response: 200 OK
-        
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> requestBody = Map.of(
-                "paymentId", 1L,
-                "userId", 100L,
-                "orderId", 200L
-            );
-            
-            // This demonstrates the actual request structure the service will send
-            // In a real Pact test, this would be verified against a mock server
-            System.out.println("Payment confirmation contract: " + requestBody);
+            client.sendPaymentConfirmation(1L, 100L, 200L);
         });
     }
 
     @Test
-    void testSendPaymentFailure() {
-        // Placeholder for payment failure notification contract
+    @PactTestFor(pactMethod = "paymentFailureContract", pactVersion = PactSpecVersion.V3)
+    void testSendPaymentFailure(MockServer mockServer) {
+        // Create service client with mock server URL
+        NotificationServiceClient client = new NotificationServiceClient(mockServer.getUrl());
         
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> requestBody = Map.of(
-                "paymentId", 2L,
-                "userId", 101L,
-                "orderId", 201L
-            );
-            
-            System.out.println("Payment failure contract: " + requestBody);
+            client.sendPaymentFailure(2L, 101L, 201L);
         });
     }
 
-    @Test 
-    void testSendRefundConfirmation() {
-        // Placeholder for refund confirmation notification contract
+    @Test
+    @PactTestFor(pactMethod = "refundConfirmationContract", pactVersion = PactSpecVersion.V3)
+    void testSendRefundConfirmation(MockServer mockServer) {
+        // Create service client with mock server URL
+        NotificationServiceClient client = new NotificationServiceClient(mockServer.getUrl());
         
+        // Execute the actual service call
         assertDoesNotThrow(() -> {
-            Map<String, Object> requestBody = Map.of(
-                "paymentId", 3L,
-                "userId", 102L,
-                "orderId", 202L
-            );
-            
-            System.out.println("Refund confirmation contract: " + requestBody);
+            client.sendRefundConfirmation(3L, 102L, 202L);
         });
     }
 }
