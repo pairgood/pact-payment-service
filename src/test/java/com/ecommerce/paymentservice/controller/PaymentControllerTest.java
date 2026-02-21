@@ -3,6 +3,7 @@ package com.ecommerce.paymentservice.controller;
 import com.ecommerce.paymentservice.dto.PaymentRequest;
 import com.ecommerce.paymentservice.model.Payment;
 import com.ecommerce.paymentservice.service.PaymentService;
+import com.ecommerce.paymentservice.telemetry.TelemetryClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,9 @@ public class PaymentControllerTest {
 
     @MockBean
     private PaymentService paymentService;
+
+    @MockBean
+    private TelemetryClient telemetryClient;
 
     @Autowired
     private ObjectMapper objectMapper;

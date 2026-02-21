@@ -3,6 +3,7 @@ package com.ecommerce.paymentservice.service;
 import com.ecommerce.paymentservice.dto.PaymentRequest;
 import com.ecommerce.paymentservice.model.Payment;
 import com.ecommerce.paymentservice.repository.PaymentRepository;
+import com.ecommerce.paymentservice.telemetry.TelemetryClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,9 @@ class PaymentServiceTest {
 
     @Mock
     private NotificationServiceClient notificationServiceClient;
+
+    @Mock
+    private TelemetryClient telemetryClient;
 
     @InjectMocks
     private PaymentService paymentService;
