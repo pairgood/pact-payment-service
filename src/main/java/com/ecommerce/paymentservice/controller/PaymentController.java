@@ -3,6 +3,7 @@ package com.ecommerce.paymentservice.controller;
 import com.ecommerce.paymentservice.dto.PaymentRequest;
 import com.ecommerce.paymentservice.model.Payment;
 import com.ecommerce.paymentservice.service.PaymentService;
+import com.ecommerce.paymentservice.telemetry.TelemetryClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -24,6 +25,13 @@ public class PaymentController {
     @Autowired
     private PaymentService paymentService;
     
+    @Autowired
+    private TelemetryClient telemetryClient;
+    
+    private String toUserId(Long userId) {
+        return userId != null ? userId.toString() : null;
+    }
+    
     @PostMapping("/process")
     @Operation(summary = "Process payment", description = "Processes a payment for an order using the provided payment information")
     @ApiResponses(value = {
@@ -33,10 +41,14 @@ public class PaymentController {
         @ApiResponse(responseCode = "500", description = "Internal server error")
     })
     public ResponseEntity<Payment> processPayment(@Valid @RequestBody PaymentRequest paymentRequest) {
+        telemetryClient.startTrace("process_payment", "POST", "/api/payments/process", toUserId(paymentRequest.getUserId()));
+        
         try {
             Payment payment = paymentService.processPayment(paymentRequest);
+            telemetryClient.finishTrace("process_payment", 200, null);
             return ResponseEntity.ok(payment);
         } catch (RuntimeException e) {
+            telemetryClient.finishTrace("process_payment", 400, e.getMessage());
             return ResponseEntity.badRequest().build();
         }
     }
@@ -101,11 +113,16 @@ public class PaymentController {
     public ResponseEntity<Payment> refundPayment(
         @Parameter(description = "Unique identifier of the payment to refund", required = true, example = "1")
         @PathVariable Long id) {
+        telemetryClient.startTrace("refund_payment", "POST", "/api/payments/" + id + "/refund", null);
+        
         try {
             Payment payment = paymentService.refundPayment(id);
+            telemetryClient.finishTrace("refund_payment", 200, null);
             return ResponseEntity.ok(payment);
         } catch (RuntimeException e) {
-            if (e.getMessage().contains("not found")) {
+            int statusCode = e.getMessage().contains("not found") ? 404 : 400;
+            telemetryClient.finishTrace("refund_payment", statusCode, e.getMessage());
+            if (statusCode == 404) {
                 return ResponseEntity.notFound().build();
             }
             return ResponseEntity.badRequest().build();

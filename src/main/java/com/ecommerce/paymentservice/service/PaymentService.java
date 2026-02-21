@@ -3,6 +3,7 @@ package com.ecommerce.paymentservice.service;
 import com.ecommerce.paymentservice.dto.PaymentRequest;
 import com.ecommerce.paymentservice.model.Payment;
 import com.ecommerce.paymentservice.repository.PaymentRepository;
+import com.ecommerce.paymentservice.telemetry.TelemetryClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,7 +22,12 @@ public class PaymentService {
     @Autowired
     private NotificationServiceClient notificationServiceClient;
     
+    @Autowired
+    private TelemetryClient telemetryClient;
+    
     public Payment processPayment(PaymentRequest paymentRequest) {
+        telemetryClient.logEvent("Processing payment for order: " + paymentRequest.getOrderId(), "INFO");
+        
         Payment payment = new Payment(
             paymentRequest.getOrderId(),
             paymentRequest.getUserId(),
@@ -31,11 +37,13 @@ public class PaymentService {
         
         // Save payment with PENDING status
         payment = paymentRepository.save(payment);
+        telemetryClient.logEvent("Payment saved with ID: " + payment.getId() + ", status: PENDING", "INFO");
         
         try {
             // Process payment through gateway
             payment.setStatus(Payment.PaymentStatus.PROCESSING);
             paymentRepository.save(payment);
+            telemetryClient.logEvent("Payment " + payment.getId() + " sent to gateway for processing", "INFO");
             
             String transactionId = paymentGatewayService.processPayment(paymentRequest);
             
@@ -45,6 +53,7 @@ public class PaymentService {
             payment.setPaymentGatewayResponse("Payment processed successfully");
             
             Payment completedPayment = paymentRepository.save(payment);
+            telemetryClient.logEvent("Payment completed successfully with transaction ID: " + transactionId, "INFO");
             
             // Send payment confirmation notification
             notificationServiceClient.sendPaymentConfirmation(
@@ -57,6 +66,7 @@ public class PaymentService {
             
         } catch (Exception e) {
             // Payment failed
+            telemetryClient.logEvent("Payment " + payment.getId() + " failed: " + e.getMessage(), "ERROR");
             payment.setStatus(Payment.PaymentStatus.FAILED);
             payment.setPaymentGatewayResponse("Payment failed: " + e.getMessage());
             
@@ -91,9 +101,12 @@ public class PaymentService {
     }
     
     public Payment refundPayment(Long id) {
+        telemetryClient.logEvent("Processing refund for payment: " + id, "INFO");
+        
         Payment payment = getPaymentById(id);
         
         if (payment.getStatus() != Payment.PaymentStatus.COMPLETED) {
+            telemetryClient.logEvent("Refund failed - payment " + id + " is not completed", "ERROR");
             throw new RuntimeException("Cannot refund payment that is not completed");
         }
         
@@ -102,6 +115,7 @@ public class PaymentService {
             
             payment.setStatus(Payment.PaymentStatus.REFUNDED);
             Payment refundedPayment = paymentRepository.save(payment);
+            telemetryClient.logEvent("Payment " + id + " refunded successfully", "INFO");
             
             // Send refund notification
             notificationServiceClient.sendRefundConfirmation(
@@ -113,6 +127,7 @@ public class PaymentService {
             return refundedPayment;
             
         } catch (Exception e) {
+            telemetryClient.logEvent("Refund failed for payment " + id + ": " + e.getMessage(), "ERROR");
             throw new RuntimeException("Refund processing failed: " + e.getMessage());
         }
     }
