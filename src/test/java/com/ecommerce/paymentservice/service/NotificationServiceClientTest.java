@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 
@@ -22,7 +23,7 @@ class NotificationServiceClientTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
 
-        notificationServiceClient = new NotificationServiceClient();
+        notificationServiceClient = new NotificationServiceClient(WebClient.builder());
         // Set the URL to point to our mock server
         ReflectionTestUtils.setField(notificationServiceClient, "notificationServiceUrl", 
             mockWebServer.url("/").toString().replaceAll("/$", ""));
@@ -126,7 +127,7 @@ class NotificationServiceClientTest {
     @Test
     void constructor_ShouldInitializeWebClient() {
         // When
-        NotificationServiceClient client = new NotificationServiceClient();
+        NotificationServiceClient client = new NotificationServiceClient(WebClient.builder());
 
         // Then
         assertNotNull(client);

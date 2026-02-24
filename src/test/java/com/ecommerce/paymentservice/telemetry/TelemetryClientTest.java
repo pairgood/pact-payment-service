@@ -7,6 +7,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -23,7 +24,7 @@ class TelemetryClientTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
 
-        telemetryClient = new TelemetryClient();
+        telemetryClient = new TelemetryClient(WebClient.builder());
         
         // Set the telemetry service URL to point to our mock server
         ReflectionTestUtils.setField(telemetryClient, "telemetryServiceUrl", 
@@ -241,7 +242,7 @@ class TelemetryClientTest {
     @Test
     void constructor_ShouldInitializeWebClient() {
         // When & Then
-        assertDoesNotThrow(() -> new TelemetryClient());
+        assertDoesNotThrow(() -> new TelemetryClient(WebClient.builder()));
     }
 
     @Test
